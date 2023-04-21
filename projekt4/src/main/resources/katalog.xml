@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<laptops moddate="2023-04-17 18:58">
+<laptops moddate="2023-04-21 17:23">
     <laptop id="1">
         <manufacturer>Dell</manufacturer>
         <screen touch="no">
@@ -275,29 +275,6 @@
         </graphic_card>
         <os>Windows 10 Home</os>
         <disc_reader>brak</disc_reader>
-    </laptop>
-    <laptop id="13">
-        <manufacturer>Fujitsu</manufacturer>
-        <screen touch="yes">
-            <size>15"</size>
-            <resolution>1920x1080</resolution>
-            <type>blyszczaca</type>
-        </screen>
-        <processor>
-            <name>intel i7</name>
-            <physical_cores>8</physical_cores>
-            <clock_speed>2800</clock_speed>
-        </processor>
-        <ram>24GB</ram>
-        <disc type="HDD">
-            <storage>500GB</storage>
-        </disc>
-        <graphic_card>
-            <name>intel HD Graphics 520</name>
-            <memory>brak danych</memory>
-        </graphic_card>
-        <os>brak systemu</os>
-        <disc_reader>Blu-Ray</disc_reader>
     </laptop>
     <laptop id="14">
         <manufacturer>Huawei</manufacturer>

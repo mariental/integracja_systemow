@@ -2,7 +2,8 @@ import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableModel;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -19,38 +20,41 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Scanner;
-import java.util.Vector;
 
 public class Main extends JFrame {
+
+    private static String oldValue = null;
+
+    private static ArrayList<Integer> duplicatesRowsNumbers = new ArrayList<>();
+    private static ArrayList<Integer> editedRowsNumbers = new ArrayList<>();
 
     public static DefaultTableModel readDataFromTxt(File file, DefaultTableModel model, JTable table) {
         try {
             Scanner fileScanner = new Scanner(file).useDelimiter("\n");
             int lineNumber = 1;
-            ArrayList<Integer> rowsNumbers = new ArrayList<>();
             while(fileScanner.hasNextLine()){
                 String line = fileScanner.nextLine();
                 Scanner lineScanner = new Scanner(line).useDelimiter(";");
                 while(lineScanner.hasNext()){
-                    ArrayList<String> rowToSave = new ArrayList<>();
-                    rowToSave.add(Integer.toString(lineNumber));
+                    String[] rowToSave = new String[16];
+                    rowToSave[0] = (Integer.toString(lineNumber));
                     for(int i=1; i < 16; i++){
                         String token = lineScanner.next();
                         if(token.isEmpty()){
-                            rowToSave.add("brak danych");
+                            rowToSave[i] = "brak danych";
                         } else {
-                            rowToSave.add(token);
+                            rowToSave[i] = (token);
                         }
                     }
-                    model.addRow(rowToSave.toArray());
                     if(checkDuplicates(model, rowToSave)){
-                        rowsNumbers.add(model.getRowCount()-1);
+                        duplicatesRowsNumbers.add(model.getRowCount());
                     }
+                    model.addRow(rowToSave);
                 }
                 lineNumber++;
             }
-            table.setDefaultRenderer(Object.class, new ColoredRenderer(true, rowsNumbers));
         } catch (FileNotFoundException ex) {
             throw new RuntimeException(ex);
         }
@@ -62,13 +66,15 @@ public class Main extends JFrame {
             FileWriter fileWriter = new FileWriter("src/main/resources/katalog.txt");
             BufferedWriter bufferWriter = new BufferedWriter(fileWriter);
             for(int i=0; i < model.getRowCount(); i++){
-                for(int j=1; j < model.getColumnCount(); j++){
-                    String cell = model.getValueAt(i, j).toString();
-                    if (cell.equals("brak danych")) {
-                        cell = "";
+                if(!duplicatesRowsNumbers.contains(i)){
+                    for(int j=1; j < model.getColumnCount(); j++){
+                        String cell = model.getValueAt(i, j).toString();
+                        if (cell.equals("brak danych")) {
+                            cell = "";
+                        }
+                        bufferWriter.write(cell);
+                        bufferWriter.write(";");
                     }
-                    bufferWriter.write(cell);
-                    bufferWriter.write(";");
                 }
                 bufferWriter.newLine();
             }
@@ -137,6 +143,9 @@ public class Main extends JFrame {
                 }
             }
         }
+        if(checkDuplicates(model, row)){
+            duplicatesRowsNumbers.add(model.getRowCount());
+        }
         model.addRow(row);
         return model;
     }
@@ -174,73 +183,75 @@ public class Main extends JFrame {
             rootElement.setAttributeNode(attr);
             doc.appendChild(rootElement);
             for(int i=0; i < model.getRowCount(); i++){
-                Element laptop = doc.createElement("laptop");
-                rootElement.appendChild(laptop);
-                int counter = 0;
-                for(int j=0; j < model.getColumnCount(); j++){
-                    String cell = model.getValueAt(i, j).toString();
-                    Element element = null;
-                    if (cell.equals("brak danych")) {
-                        cell = "";
-                    }
-                    if(j == 0) {
-                        Attr id = doc.createAttribute("id");
-                        id.setValue(cell);
-                        laptop.setAttributeNode(id);
-                    }
-                    if(j == 1 || j == 9 || j == 14 || j == 15 ) {
-                        String[] names = {"manufacturer", "ram", "os", "disc_reader"};
-                        element = doc.createElement(names[counter]);
-                        element.appendChild(doc.createTextNode(cell));
-                        counter++;
-                    }
-                    if(j == 5) {
-                        element = doc.createElement("screen");
-                        Attr screen = doc.createAttribute("touch");
-                        if(cell.equals("nie")) {
-                            screen.setValue("no");
-                        } else {
-                            screen.setValue("yes");
+                if(!duplicatesRowsNumbers.contains(i)){
+                    Element laptop = doc.createElement("laptop");
+                    rootElement.appendChild(laptop);
+                    int counter = 0;
+                    for(int j=0; j < model.getColumnCount(); j++){
+                        String cell = model.getValueAt(i, j).toString();
+                        Element element = null;
+                        if (cell.equals("brak danych")) {
+                            cell = "";
                         }
-                        element.setAttributeNode(screen);
-                        String[] names = {"size", "resolution", "type"};
-                        for(int k = 0; k < 3; k++) {
-                            Element element2 = doc.createElement(names[k]);
-                            element2.appendChild(doc.createTextNode(model.getValueAt(i, k+2).toString()));
+                        if(j == 0) {
+                            Attr id = doc.createAttribute("id");
+                            id.setValue(cell);
+                            laptop.setAttributeNode(id);
+                        }
+                        if(j == 1 || j == 9 || j == 14 || j == 15 ) {
+                            String[] names = {"manufacturer", "ram", "os", "disc_reader"};
+                            element = doc.createElement(names[counter]);
+                            element.appendChild(doc.createTextNode(cell));
+                            counter++;
+                        }
+                        if(j == 5) {
+                            element = doc.createElement("screen");
+                            Attr screen = doc.createAttribute("touch");
+                            if(cell.equals("nie")) {
+                                screen.setValue("no");
+                            } else {
+                                screen.setValue("yes");
+                            }
+                            element.setAttributeNode(screen);
+                            String[] names = {"size", "resolution", "type"};
+                            for(int k = 0; k < 3; k++) {
+                                Element element2 = doc.createElement(names[k]);
+                                element2.appendChild(doc.createTextNode(model.getValueAt(i, k+2).toString()));
+                                element.appendChild(element2);
+                            }
+                        }
+                        if(j == 11) {
+                            element = doc.createElement("disc");
+                            if(!cell.equals("")){
+                                Attr type = doc.createAttribute("type");
+                                type.setValue(cell);
+                                element.setAttributeNode(type);
+                            }
+                            Element element2 = doc.createElement("storage");
+                            element2.appendChild(doc.createTextNode(model.getValueAt(i, 10).toString()));
                             element.appendChild(element2);
                         }
-                    }
-                    if(j == 11) {
-                        element = doc.createElement("disc");
-                        if(!cell.equals("")){
-                            Attr type = doc.createAttribute("type");
-                            type.setValue(cell);
-                            element.setAttributeNode(type);
+                        if(j == 12){
+                            element = doc.createElement("graphic_card");
+                            String[] names = {"name", "memory"};
+                            for(int k = 0; k < 2; k++) {
+                                Element element2 = doc.createElement(names[k]);
+                                element2.appendChild(doc.createTextNode(model.getValueAt(i, k+12).toString()));
+                                element.appendChild(element2);
+                            }
                         }
-                        Element element2 = doc.createElement("storage");
-                        element2.appendChild(doc.createTextNode(model.getValueAt(i, 10).toString()));
-                        element.appendChild(element2);
-                    }
-                    if(j == 12){
-                        element = doc.createElement("graphic_card");
-                        String[] names = {"name", "memory"};
-                        for(int k = 0; k < 2; k++) {
-                            Element element2 = doc.createElement(names[k]);
-                            element2.appendChild(doc.createTextNode(model.getValueAt(i, k+12).toString()));
-                            element.appendChild(element2);
+                        if(j == 6) {
+                            element = doc.createElement("processor");
+                            String[] names = {"name", "physical_cores", "clock_speed"};
+                            for(int k = 0; k < 3; k++) {
+                                Element element2 = doc.createElement(names[k]);
+                                element2.appendChild(doc.createTextNode(model.getValueAt(i, k+6).toString()));
+                                element.appendChild(element2);
+                            }
                         }
-                    }
-                    if(j == 6) {
-                        element = doc.createElement("processor");
-                        String[] names = {"name", "physical_cores", "clock_speed"};
-                        for(int k = 0; k < 3; k++) {
-                            Element element2 = doc.createElement(names[k]);
-                            element2.appendChild(doc.createTextNode(model.getValueAt(i, k+6).toString()));
-                            element.appendChild(element2);
+                        if(element != null) {
+                            laptop.appendChild(element);
                         }
-                    }
-                    if(element != null) {
-                        laptop.appendChild(element);
                     }
                 }
             }
@@ -281,31 +292,37 @@ public class Main extends JFrame {
             resultSetMetaData = resultSet.getMetaData();
             columnCounter = resultSetMetaData.getColumnCount();
             while (resultSet.next()) {
-                Vector row = new Vector();
+                String[] row = new String[16];
                 for(int i=1; i<=columnCounter; i++) {
                     if(resultSetMetaData.getColumnType(i) == 12) {
                         if(resultSet.getString(i) == null) {
-                            row.add("brak danych");
+                            row[i-1] = ("brak danych");
                         } else {
-                            row.add(resultSet.getString(i));
+                            row[i-1] = (resultSet.getString(i));
                         }
                     } else {
                         int data = resultSet.getInt(i);
-                        if(data == 0) {
-                            if(resultSetMetaData.getColumnName(i).equals("isTouchable")){
-                                row.add("nie");
+                        if (resultSetMetaData.getColumnName(i).equals("isTouchable")) {
+                            if(data == 0){
+                                row[i-1] = ("nie");
+                            } else if (data == 1) {
+                                row[i-1] = ("tak");
                             } else {
-                                row.add("brak danych");
+                                row[i-1] = ("brak danych");
                             }
+                        } else if (data == 0){
+                            row[i-1] = ("brak danych");
                         } else if(resultSetMetaData.getColumnName(i).equals("matrixSize")) {
-                            row.add(data + "''");
+                            row[i-1] = (data + "\"");
                         } else if (resultSetMetaData.getColumnName(i).equals("ram") | resultSetMetaData.getColumnName(i).equals("discStorage") |resultSetMetaData.getColumnName(i).equals("graphicCardMemory")) {
-                            row.add(data + "GB");
-                        }
-                        else {
-                            row.add(data);
+                            row[i-1] = (data + "GB");
+                        } else {
+                          row[i-1] = (String.valueOf(data));
                         }
                     }
+                }
+                if(checkDuplicates(model, row)){
+                    duplicatesRowsNumbers.add(model.getRowCount());
                 }
                 model.addRow(row);
             }
@@ -319,46 +336,47 @@ public class Main extends JFrame {
 
     public static void saveDataToDb(DefaultTableModel model, Connection connection) {
         for(int i=0; i < model.getRowCount(); i++){
-            StringBuilder queryBuilder = new StringBuilder("INSERT INTO `laptops`(`producer`, `matrixSize`, `resolution`, `matrixType`, `isTouchable`, `processorName`, `physicalCores`, `clockSpeed`, `ram`, `discStorage`, `discType`, `graphicCardName`, `graphicCardMemory`, `operationSystem`, `discReader`) VALUES(");
-            for(int j=1; j < model.getColumnCount(); j++){
-                String value = model.getValueAt(i, j).toString();
-                int[] intValues = {2, 7, 8, 9, 10, 13};
-                int finalJ = j;
-                if (value.equals("brak danych")) {
-                    queryBuilder.append("NULL");
-                } else if (Arrays.stream(intValues).anyMatch(k -> k == finalJ)) {
-                    value = value.replaceAll("[^\\d.]", "");
-                    queryBuilder.append(value);
-                } else if (j == 5) {
-                    if(value.equals("nie")){
-                        queryBuilder.append(0);
+            if(!duplicatesRowsNumbers.contains(i)){
+                StringBuilder queryBuilder = new StringBuilder("INSERT INTO `laptops`(`producer`, `matrixSize`, `resolution`, `matrixType`, `isTouchable`, `processorName`, `physicalCores`, `clockSpeed`, `ram`, `discStorage`, `discType`, `graphicCardName`, `graphicCardMemory`, `operationSystem`, `discReader`) VALUES(");
+                for(int j=1; j < model.getColumnCount(); j++){
+                    String value = model.getValueAt(i, j).toString();
+                    int[] intValues = {2, 7, 8, 9, 10, 13};
+                    int finalJ = j;
+                    if (value.equals("brak danych")) {
+                        queryBuilder.append("NULL");
+                    } else if (Arrays.stream(intValues).anyMatch(k -> k == finalJ)) {
+                        value = value.replaceAll("[^\\d.]", "");
+                        queryBuilder.append(value);
+                    } else if (j == 5) {
+                        if(value.equals("nie")){
+                            queryBuilder.append(0);
+                        } else {
+                            queryBuilder.append(1);
+                        }
                     } else {
-                        queryBuilder.append(1);
+                        queryBuilder.append("\""+ model.getValueAt(i, j) + "\"");
                     }
-                } else {
-                    queryBuilder.append("\""+ model.getValueAt(i, j) + "\"");
+                    if(j != model.getColumnCount()-1){
+                        queryBuilder.append(", ");
+                    }
                 }
-                if(j != model.getColumnCount()-1){
-                    queryBuilder.append(", ");
+                queryBuilder.append(")");
+                String query = queryBuilder.toString();
+                try {
+                    PreparedStatement statement = connection.prepareStatement(query);
+                    statement.execute();
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
                 }
-            }
-            queryBuilder.append(")");
-            String query = queryBuilder.toString();
-            try {
-                System.out.println(query);
-                PreparedStatement statement = connection.prepareStatement(query);
-                statement.execute();
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
         }
     }
 
-    public static boolean checkDuplicates(DefaultTableModel model, ArrayList<String> row) {
+    public static boolean checkDuplicates(DefaultTableModel model, String[] row) {
         int duplicatesCounter = 0;
         for(int i=0; i < model.getRowCount(); i++){
             for(int j=1; j < model.getColumnCount(); j++) {
-                if(model.getValueAt(i, j).equals(row.get(j-1))){
+                if(model.getValueAt(i, j).equals(row[j])){
                     duplicatesCounter++;
                 }
             }
@@ -380,21 +398,42 @@ public class Main extends JFrame {
         final File[] file = new File[1];
         JFrame frame = new JFrame("Integracja systemów - Katarzyna Kurek");
         JTable table = new JTable();
+        JLabel infoText = new JLabel();
         JButton importButtonTxt = new JButton("Importuj z pliku txt");
         JButton exportButtonTxt = new JButton("Eksportuj do pliku txt");
         JButton importButtonXml = new JButton("Importuj z pliku xml");
         JButton exportButtonXml = new JButton("Eksportuj do pliku xml");
         JButton importFromDatabase = new JButton("Importuj z bazy danych");
         JButton exportToDatabase = new JButton("Eksportuj do bazy danych");
+        JButton clearTable = new JButton("Wyczyść tabelę");
         Connection conn = connectToDb();
+        table.setDefaultRenderer(Object.class, new RowRenderer(true, duplicatesRowsNumbers, editedRowsNumbers));
 
         importButtonTxt.addActionListener(e -> {
             file[0] = new File("src/main/resources/katalog.txt");
-            table.setModel(readDataFromTxt(file[0],model, table));
+            if(file[0].exists()){
+                table.setModel(readDataFromTxt(file[0],model, table));
+                if(model.getRowCount() == 0){
+                    infoText.setText("Brak danych do wczytania");
+                } else {
+                    infoText.setText("Dane wczytane z pliku txt - nowe rekordy: " + (model.getRowCount()-duplicatesRowsNumbers.size()) + ", duplikaty: " + duplicatesRowsNumbers.size());
+                }
+            } else {
+                infoText.setText("Brak pliku");
+            }
         });
         importButtonXml.addActionListener(e -> {
             file[0] = new File("src/main/resources/katalog.xml");
-            table.setModel(readDataFromXml(file[0],model));
+            if(file[0].exists()) {
+                table.setModel(readDataFromXml(file[0],model));
+                if(model.getRowCount() == 0){
+                    infoText.setText("Brak danych do wczytania");
+                } else {
+                    infoText.setText("Dane wczytane z pliku xml - nowe rekordy: " + (model.getRowCount()-duplicatesRowsNumbers.size()) + ", duplikaty: " + duplicatesRowsNumbers.size());
+                }
+            } else {
+                infoText.setText("Brak pliku");
+            }
         });
         exportButtonTxt.addActionListener(e -> {
             saveFileToTxt(model, frame);
@@ -404,19 +443,39 @@ public class Main extends JFrame {
         });
         importFromDatabase.addActionListener(e -> {
             table.setModel(readDataFromDb(model, conn));
+            if(model.getRowCount() == 0){
+                infoText.setText("Brak danych do wczytania");
+            } else {
+                infoText.setText("Dane wczytane z bazy danych - nowe rekordy: " + (model.getRowCount()-duplicatesRowsNumbers.size()) + ", duplikaty: " + duplicatesRowsNumbers.size());
+            }
         });
         exportToDatabase.addActionListener(e -> {
             saveDataToDb(model, conn);
         });
+        clearTable.addActionListener(e -> {
+            duplicatesRowsNumbers.clear();
+            editedRowsNumbers.clear();
+            model.setRowCount(0);
+            infoText.setText("");
+        });
         table.setCellSelectionEnabled(true);
         table.addPropertyChangeListener("tableCellEditor", e -> {
-            if(!table.isEditing()){
-                table.getColumnModel().getColumn(table.getEditingColumn()).setCellRenderer(new StatusColumnCellRenderer());
+            if(table.isEditing()){
+                oldValue = model.getValueAt(table.getSelectedRow(), table.getSelectedColumn()).toString();
+            }
+            if(!table.isEditing() & oldValue != null){
+                String newValue = model.getValueAt(table.getEditingRow(), table.getEditingColumn()).toString().trim();
+                if(!Objects.equals(oldValue, newValue)) {
+                    editedRowsNumbers.add(table.getEditingRow());
+                    table.getColumnModel().getColumn(table.getEditingColumn()).setCellRenderer(new CellRenderer(table.getEditingRow(), duplicatesRowsNumbers, editedRowsNumbers));
+                    model.fireTableDataChanged();
+                }
             }
         });
         frame.setLayout(new BorderLayout());
         JScrollPane scrollPane = new JScrollPane(table);
         JPanel panel = new JPanel();
+        panel.setLayout(new FlowLayout());
         frame.setSize(1600,800);
         panel.add(importButtonTxt);
         panel.add(exportButtonTxt);
@@ -424,6 +483,8 @@ public class Main extends JFrame {
         panel.add(exportButtonXml);
         panel.add(importFromDatabase);
         panel.add(exportToDatabase);
+        panel.add(clearTable);
+        panel.add(infoText);
         frame.add(panel, BorderLayout.NORTH);
         frame.add(scrollPane, BorderLayout.CENTER);
         frame.setVisible(true);
